@@ -174,7 +174,30 @@ public class LibraryManagementSystemImpl implements LibraryManagementSystem {
 
     @Override
     public ApiResult modifyBookInfo(Book book) {
-        return new ApiResult(false, "Unimplemented Function");
+        Connection conn = connector.getConn();
+        try {
+            String query_sql = "SELECT * FROM book WHERE book_id = ?";
+            PreparedStatement query_stmt = conn.prepareStatement(query_sql);
+            query_stmt.setInt(1, book.getBookId());
+            ResultSet rs = query_stmt.executeQuery();
+            if (!rs.next()) {
+                return new ApiResult(false, "Book not found");
+            }
+            PreparedStatement modify_stmt = conn.prepareStatement("UPDATE book SET category = ?, title = ?, press = ?, publish_year = ?, author = ?, price = ? WHERE book_id = ?");
+            modify_stmt.setString(1, book.getCategory());
+            modify_stmt.setString(2, book.getTitle());
+            modify_stmt.setString(3, book.getPress());
+            modify_stmt.setInt(4, book.getPublishYear());
+            modify_stmt.setString(5, book.getAuthor());
+            modify_stmt.setDouble(6, book.getPrice());
+            modify_stmt.setInt(7, book.getBookId());
+            modify_stmt.executeUpdate();
+            commit(conn);
+        } catch (Exception e) {
+            rollback(conn);
+            return new ApiResult(false, e.getMessage());
+        }
+        return new ApiResult(true, null);
     }
 
     @Override
@@ -252,6 +275,11 @@ public class LibraryManagementSystemImpl implements LibraryManagementSystem {
     @Override
     public ApiResult borrowBook(Borrow borrow) {
         Connection conn = connector.getConn();
+        try {//这里需要将事务隔离级别设置为串行化，这样虽然效率低，但是可以避免并发问题
+            conn.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
         try {
             String sql = "SELECT * FROM book WHERE book_id = ?";
             PreparedStatement query_stmt = conn.prepareStatement(sql);
@@ -260,7 +288,8 @@ public class LibraryManagementSystemImpl implements LibraryManagementSystem {
             if (!borrow_book.next()) {//说明没有这本书
                 return new ApiResult(false, "Book not found");
             }
-            else if (borrow_book.getInt("stock") == 0) {//说明没有库存
+            else if (borrow_book.getInt("stock") <= 0) {//说明没有库存
+                rollback(conn);
                 return new ApiResult(false, "No stock");
             }
             else {
@@ -273,12 +302,16 @@ public class LibraryManagementSystemImpl implements LibraryManagementSystem {
                 if (!record.next()) {//此人没借过这本书或者已经还了
                     //更新了插入时不用赋值return_time
                     String borrow_sql = "INSERT INTO borrow (card_id, book_id, borrow_time) VALUES(?,?,?)";
+                    //String lock_sql = "SELECT stock FROM book WHERE book_id = ? FOR UPDATE";
                     String de_stock_sql = "UPDATE book SET stock = ? WHERE book_id = ?";
                     PreparedStatement exuStatement = conn.prepareStatement(borrow_sql);
                     exuStatement.setInt(1, borrow.getCardId());
                     exuStatement.setInt(2, borrow.getBookId());
                     exuStatement.setLong(3, borrow.getBorrowTime());
                     exuStatement.executeUpdate();
+                    // PreparedStatement lock_stmt = conn.prepareStatement(lock_sql);
+                    // lock_stmt.setInt(1, borrow.getBookId());
+                    // lock_stmt.executeQuery();
                     PreparedStatement de_stock_stmt = conn.prepareStatement(de_stock_sql);
                     de_stock_stmt.setInt(1, borrow_book.getInt("stock")-1);
                     de_stock_stmt.setString(2, borrow_book.getString("book_id"));
@@ -398,12 +431,54 @@ public class LibraryManagementSystemImpl implements LibraryManagementSystem {
 
     @Override
     public ApiResult removeCard(int cardId) {
-        return new ApiResult(false, "Unimplemented Function");
+        Connection conn = connector.getConn();
+        try {
+            String query_sql = "SELECT * FROM borrow WHERE card_id = ? AND return_time = 0";
+            PreparedStatement query_stmt = conn.prepareStatement(query_sql);
+            query_stmt.setInt(1, cardId);
+            ResultSet rs = query_stmt.executeQuery();
+            if (rs.next()) {
+                return new ApiResult(false, "There are un-returned books");
+            }
+            PreparedStatement remove_stmt = conn.prepareStatement("DELETE FROM card WHERE card_id = ?");
+            remove_stmt.setInt(1, cardId);
+            int del = remove_stmt.executeUpdate();
+            if (del == 0) {
+                rollback(conn);
+                return new ApiResult(false, "The card to be deleted not exits");
+            }
+            commit(conn);
+        } catch (Exception e) {
+            rollback(conn);
+            return new ApiResult(false, e.getMessage());
+        }
+        return new ApiResult(true, null);
     }
 
     @Override
     public ApiResult showCards() {
-        return new ApiResult(false, "Unimplemented Function");
+        Connection conn = connector.getConn();
+        List<Card> cards = new ArrayList<>();
+        try {
+            String query_sql = "SELECT * FROM card ORDER BY card_id";
+            PreparedStatement query_stmt = conn.prepareStatement(query_sql);
+            ResultSet rs = query_stmt.executeQuery();
+            while (rs.next()) {
+                Card card = new Card();
+                card.setCardId(rs.getInt("card_id"));
+                card.setName(rs.getString("name"));
+                card.setDepartment(rs.getString("department"));
+                card.setType(Card.CardType.values(rs.getString("type")));//这里要注意类型的转化
+                cards.add(card);
+            }
+            query_stmt.close();
+            commit(conn);
+        } catch (Exception e) {
+            rollback(conn);
+            return new ApiResult(false, e.getMessage());
+        }
+        CardList result = new CardList(cards);
+        return new ApiResult(true, result);
     }
 
     @Override
