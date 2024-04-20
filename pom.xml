@@ -74,6 +74,36 @@
             <artifactId>commons-lang3</artifactId>
             <version>3.7</version>
         </dependency>
+    
+      <dependency>
+        <groupId>org.apache.tika</groupId>
+        <artifactId>tika-core</artifactId>
+        <version>1.22</version>
+      </dependency>
+    
+      <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpcore</artifactId>
+        <version>4.4.11</version>
+      </dependency>
+    
+      <dependency>
+        <groupId>com.toasttab.protokt</groupId>
+        <artifactId>protokt-jvm-extensions-lite</artifactId>
+        <version>1.0.0-alpha.10</version>
+      </dependency>
+    
+      <dependency>
+        <groupId>com.toasttab.protokt</groupId>
+        <artifactId>protokt-jvm-extensions-lite</artifactId>
+        <version>1.0.0-alpha.10</version>
+      </dependency>
+    
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-all</artifactId>
+        <version>4.1.39.Final</version>
+      </dependency>
     </dependencies>
 
 </project>
