@@ -19,6 +19,15 @@ public final class Card {
             return str;
         }
 
+        //增加一个将cardtype转化为“Student”的方法
+        public String toStr() {
+            if (this == Student) {
+                return "Student";
+            } else {
+                return "Teacher";
+            }
+        }
+        
         public static CardType values(String s) {
             if ("S".equals(s)) {
                 return Student;

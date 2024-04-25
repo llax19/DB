@@ -52,17 +52,11 @@ public class LibraryManagementSystemImpl implements LibraryManagementSystem {
                 return new ApiResult(false, "Failed to get book id");
             }
             commit(conn);
-            // stmt1.close();
-            // if (stmt2 != null) {
-            //     stmt2.close();
-            // }
             return new ApiResult(true, book.getBookId());
         } catch (Exception e) {
             rollback(conn);
             return new ApiResult(false, e.getMessage());
-        } //finally {
-        //     conn.close();
-        // }
+        }
     }
 
     @Override
@@ -309,9 +303,6 @@ public class LibraryManagementSystemImpl implements LibraryManagementSystem {
                     exuStatement.setInt(2, borrow.getBookId());
                     exuStatement.setLong(3, borrow.getBorrowTime());
                     exuStatement.executeUpdate();
-                    // PreparedStatement lock_stmt = conn.prepareStatement(lock_sql);
-                    // lock_stmt.setInt(1, borrow.getBookId());
-                    // lock_stmt.executeQuery();
                     PreparedStatement de_stock_stmt = conn.prepareStatement(de_stock_sql);
                     de_stock_stmt.setInt(1, borrow_book.getInt("stock")-1);
                     de_stock_stmt.setString(2, borrow_book.getString("book_id"));
@@ -333,17 +324,28 @@ public class LibraryManagementSystemImpl implements LibraryManagementSystem {
     public ApiResult returnBook(Borrow borrow) {
         Connection conn = connector.getConn();
         try {
+            String query_sql = "SELECT * FROM borrow WHERE book_id = ? AND card_id = ? AND return_time = 0";
+            PreparedStatement query_stmt = conn.prepareStatement(query_sql);
+            query_stmt.setInt(1, borrow.getBookId());
+            query_stmt.setInt(2, borrow.getCardId());
+            ResultSet rs = query_stmt.executeQuery();
+            if (!rs.next()) {
+                return new ApiResult(false, "No such borrow record");
+            } else {
+                borrow.setBorrowTime(rs.getLong("borrow_time"));
+            }
             if (borrow.getReturnTime() <= borrow.getBorrowTime()) {
                 return new ApiResult(false, "Invalid return time");
             }
-            String update_sql = "UPDATE borrow SET return_time = ? WHERE book_id = ? AND card_id = ? AND borrow_time = ? AND return_time = 0";
+            String update_sql = "UPDATE borrow SET return_time = ? WHERE book_id = ? AND card_id = ? AND return_time = 0";
+            //
             String inc_sql = "UPDATE book SET stock = stock+1 WHERE book_id = ?";
             PreparedStatement up_stmt = conn.prepareStatement(update_sql);
             PreparedStatement inc_stmt = conn.prepareStatement(inc_sql);
             up_stmt.setLong(1, borrow.getReturnTime());
             up_stmt.setInt(2, borrow.getBookId());
             up_stmt.setInt(3, borrow.getCardId());
-            up_stmt.setLong(4, borrow.getBorrowTime());
+            //up_stmt.setLong(4, 0);
             int res = up_stmt.executeUpdate();
             if (res == 0) {//如果没有这条借书记录
                 rollback(conn);
@@ -481,6 +483,32 @@ public class LibraryManagementSystemImpl implements LibraryManagementSystem {
         return new ApiResult(true, result);
     }
 
+    @Override
+    public ApiResult modifyCardInfo(Card card) {
+        Connection conn = connector.getConn();
+        try {
+            String query_sql = "SELECT * FROM card WHERE card_id = ?";
+            PreparedStatement query_stmt = conn.prepareStatement(query_sql);
+            query_stmt.setInt(1, card.getCardId());
+            ResultSet rs = query_stmt.executeQuery();
+            if (!rs.next()) {
+                return new ApiResult(false, "Card not found");
+            }
+            PreparedStatement modify_stmt = conn.prepareStatement("UPDATE card SET name=?, department=?, type=? WHERE card_id = ?");
+            modify_stmt.setString(1, card.getName());
+            modify_stmt.setString(2, card.getDepartment());
+            modify_stmt.setString(3, card.getType().getStr());
+            modify_stmt.setInt(4, card.getCardId());
+            modify_stmt.executeUpdate();
+            commit(conn);
+        } catch (Exception e) {
+            rollback(conn);
+            return new ApiResult(false, e.getMessage());
+        }
+        return new ApiResult(true, null);
+    }
+
+    
     @Override
     public ApiResult resetDatabase() {
         Connection conn = connector.getConn();

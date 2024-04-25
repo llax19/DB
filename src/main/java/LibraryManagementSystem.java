@@ -166,6 +166,10 @@ public interface LibraryManagementSystem {
      */
     ApiResult showCards();
 
+
+    ApiResult modifyCardInfo(Card card);
+
+
     /**
      * reset database to its initial state.
      * you are not allowed to complete & modify this function.
